@@ -1,0 +1,63 @@
+function video = makeAnimation(q,Bb,time)
+%Makes a video of the satellite attitude represented by unit axes in ECI
+%space and the external magnetic field.
+
+%Movie settings
+video = VideoWriter('C:\Users\Addy\odrive\Google Drive (2)\4_Space_Systems\ADCS\matlab_sims\attitudeAnimation.avi');
+video.Quality = 100;
+video.FrameRate = 30;
+
+%Frames in animation
+frames = time+1;
+
+%Axes of the satellite in Body Frame
+xAxis = [1;0;0];
+yAxis = [0;1;0];
+zAxis = [0;0;2];  %Represent the minor axis with a longer vector
+
+%Matrix of axes of the satellite and magnetic field in ECI Frame 
+xAtTime = zeros(frames,3);
+yAtTime = zeros(frames,3);
+zAtTime = zeros(frames,3);
+BAtTime = zeros(frames,3);
+
+%Fill the matrices
+for currentFrame=1:frames
+    Rib = (ECItoBody(q(currentFrame,:)))';
+    
+    xAtTime(currentFrame,:) = (Rib*xAxis)';
+    yAtTime(currentFrame,:) = (Rib*yAxis)';
+    zAtTime(currentFrame,:) = (Rib*zAxis)';
+    
+    Bi = (Rib*Bb(:,currentFrame))';
+    BAtTime(currentFrame,:) = 2*(Bi/norm(Bi));  %Set length of B to 2 units
+end
+
+%Make movie
+hold all;
+open(video);
+for currentFrame=1:frames
+    %Refresh figure
+    clf;
+    
+    %Body attitude
+    quiver3(0,0,0,xAtTime(currentFrame,1),xAtTime(currentFrame,2),xAtTime(currentFrame,3),'b'); hold on;
+    quiver3(0,0,0,yAtTime(currentFrame,1),yAtTime(currentFrame,2),yAtTime(currentFrame,3),'b')
+    quiver3(0,0,0,zAtTime(currentFrame,1),zAtTime(currentFrame,2),zAtTime(currentFrame,3),'k')
+    
+    %Magnetic field direction
+    quiver3(0,0,0,BAtTime(currentFrame,1),BAtTime(currentFrame,2),BAtTime(currentFrame,3),'r')
+    
+    %Axes settings
+    xlim([-2 2]);
+    ylim([-2 2]);
+    zlim([-2 2]);
+    grid on;
+    
+    %Write current frame to video
+    writeVideo(video,getframe(gcf));
+end
+close(video);
+
+%Open the video
+winopen('C:\Users\Addy\odrive\Google Drive (2)\4_Space_Systems\ADCS\matlab_sims\attitudeAnimation.avi')

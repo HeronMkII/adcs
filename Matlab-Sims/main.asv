@@ -1,0 +1,233 @@
+%% ATTITUDE AND ORBIT PROPAGATION %%
+
+%Using a dipole model for the Earth's magnetic field, this program
+%propagates the attitude of a passive magnetic attitude controlled
+%satellite in orbit. The main restoring torque comes from a permanent
+%magnet along the z-axis (minor axis), while the damping torque comes from
+%hysteresis rods along the x and y axes (major axes). The gravity gradient
+%torque is included as a disturbance torque.
+
+clear all;
+makeAttitudeVideo = false;
+
+%Universal Constants
+u=3.986004418e14;               %Gravitational parameter of the Earth
+mu=4e-7*pi;                     %Relative permeability of free space
+
+%Parameter Constants
+days=2;                        %Simulation time in days
+
+%Permenorm 5000 H2 rods NOPE: HyMu 80 Rods 
+rodsPerAxis=1;                  %Number of hysteresis rods per axis (x and y)
+Hc=5;                           %Constant coercivity value of hyst rods
+Bs=1.55;                        %Magnetization at saturation of hyst rods
+Br=0.755;                       %Magnetic remanence of hysteresis rods
+rodLength=0.085;                %Hysteresis rod dimensions
+rodRadius=0.0005;
+
+M=[0;0;0.32];                    %Magnetic moment of permanent magnet
+mass=4;                       %Satellite mass and dimentions
+width=0.1;
+height=0.3;
+
+majorAxis=6928137;              %ISS Orbital parameters in keplerian elements
+eccentricity=0.000;        
+inclination=97.501;
+longOfAscendingNode=270.478; %VALIDATE-keeps changing
+ArgumentOfPeriapsis=0;
+MeanAnomalyEpoch=360;         %VALIDATE-keeps changing
+
+%Calculated constants
+time=days*3600*24;                          %Simulation time in seconds
+I=[(1/12)*mass*(width^2+height^2),0,0;...   %Inertia tensor assuming
+    0,(1/12)*mass*(width^2+height^2),0;...     %uniform mass distribution
+    0,0,(1/12)*mass*(width^2+width^2)];
+rodVol=pi*rodRadius^2*rodLength;            %Hysteresis rod volume
+Hr=cot((pi*Br)/(2*Bs))*Hc;                  %Remanence constant
+
+%Initial Conditions
+kepElem=[u;majorAxis;...            %Orbit parameters in keplerian elements
+         eccentricity;...
+         inclination;...
+         longOfAscendingNode;...
+         ArgumentOfPeriapsis;...
+         MeanAnomalyEpoch];
+p0=orbitToCartesian(kepElem);       %Convert keplerian elements to cartesian position and velocity
+% r0=p0(1:3,1);                       %Initial position in ECI (or ECF because initially aligned)
+% v0=p0(4:6,1);                       %Initial velocity in ECI (or ECF because initially aligned)
+r0 = 1e3*[4004.6914; 5636.0926; 442.706];
+v0 = 1e3*[0.55055; 0.9804; 7.5013];
+w0=[0.26;0.26;0.01];                  %Initial angular velocity
+q0=[1;0;0;0];                       %Initial quaternion relating satellite attitude to ECI frame
+
+%Determine initial magnetization of rods assuming they started out at B=0
+%and have reached equilibrium (they have been in the constant external
+%magnetic field for a long time)
+Rbi0 = ECItoBody(q0);
+Hb0 = Rbi0*(dipole_magstrength(r0));   %ECF and ECI are initially aligned, so no need to rotate
+HxRod0=Hb0(1);
+% HxRod0 = Hb0(3); %rod on Z
+HyRod0=Hb0(2);
+if HxRod0 < 0
+    x = atan(-(Hc-HxRod0)/Hr);
+    BxRod0 = x*2*Bs/pi;
+else
+    x = atan((HxRod0+Hc)/Hr);
+    BxRod0 = x*2*Bs/pi;
+end
+if HyRod0 < 0
+    y = atan(-(Hc-HyRod0)/Hr);
+    ByRod0 = y*2*Bs/pi;
+else
+    y = atan((HyRod0+Hc)/Hr);
+    ByRod0 = y*2*Bs/pi;
+end
+
+%INTEGRATE
+options = odeset('RelTol',1e-6,'AbsTol',1e-7,'OutputFcn',@odetpbar);
+[t,A] = ode23(@(t,x)propagate(t, x, mu, u, M, rodVol, I, Hc, Hr, Bs, rodsPerAxis),...
+              0:time, [w0;q0;r0;v0;BxRod0;ByRod0], options);
+
+%Integration outputs
+w = A(:,1:3);
+q = A(:,4:7);
+r = A(:,8:10);
+v = A(:,11:13);
+BxRod = A(:,14);
+% BxRod = A(:,16); %rod on Z
+ByRod = A(:,15);
+
+%%GENERATE RESULTS
+
+rEarth = zeros(3,time+1);   %%Position in ECF
+vEarth = zeros(3,time+1);   %%Velocity in ECF
+
+He = zeros(3,time+1);       %%Magnetic field strength in ECF
+Hb = zeros(3,time+1);       %%Magnetic field strength in Body Frame
+Be = zeros(3,time+1);       %%Magnetic field flux density in ECF
+Bb = zeros(3,time+1);       %%Magnetic field flux density in Body Frame
+HxRod = zeros(1,time+1);    %%Magnetic field strength along an x-axis rod
+HyRod = zeros(1,time+1);    %%Magnetic field strength along a y-axis rod
+
+Tmag = zeros(3,time+1);     %%Torque due to permanent magnet
+TxRod = zeros(3,time+1);    %%Torque due to all x-axis rods
+TyRod = zeros(3,time+1);    %%Torque due to all y-axis rods
+Tg = zeros(3,time+1);       %%Torque due to the gravity gradient
+
+Error = zeros(1,time+1);    %%Angle between minor (z) axis and external magnetic field
+
+timeDays = zeros(time+1,1); %%Time of simulation in days
+
+%%For-loop to fill matrices at every time step
+for k=1:time+1      %%Each index of k corresponds to the current time+1 (k=1->t=0)
+    
+    %%Declare rotation cosine matrices
+    Rei = ECItoECF(k-1);
+    ReiDot = dECItoECFdt(k-1);
+    Rbi = ECItoBody(q(k,:));
+    
+    %%Fill rEarth and vEarth
+    rEarth(:,k) = Rei*r(k,:)';
+    vEarth(:,k) = ReiDot*r(k,:)' + Rei*v(k,:)';
+    
+    %%Fill magnetic field elements
+    He(:,k) = dipole_magstrength(rEarth(:,k));
+    Be(:,k) = dipole_magfield(rEarth(:,k));
+    Hb(:,k) = Rbi*Rei'*He(:,k);
+    Bb(:,k) = Rbi*Rei'*Be(:,k);
+    HxRod(k) = Hb(1,k);
+%     HxRod(k) = Hb(3,k); %rod on Z
+    HyRod(k) = Hb(2,k);
+    
+    %%Fill torque elements
+    Tmag(:,k) = skew(M)*(Bb(:,k));
+    TxRod(:,k) = rodsPerAxis * skew([BxRod(k)*rodVol;0;0])*Hb(:,k);
+%     TxRod(:,k) = rodsPerAxis * skew([0;0;BxRod(k)*rodVol])*Hb(:,k); %Move rod to Z axis
+    TyRod(:,k) = rodsPerAxis * skew([0;ByRod(k)*rodVol;0])*Hb(:,k);
+    Tg(:,k) = gravity_gradient(u,r(k,:)',Rbi,I);
+    
+    %Fill Error matrix
+    Error(k) = angle(M,Bb(:,k));
+    
+    %Fill TimeDays matrix
+    timeDays(k) = t(k)/60;
+    
+end
+
+%%GRAPH RESULTS
+%% 
+
+%%Easily designate which results to graph
+angVel = true;
+errorAng = true;
+torque = false;
+hystCurves = false;
+inertialOrbit = false;
+earthOrbit = false;
+qNorm = false;
+
+if angVel==true
+    figure;
+    plot(timeDays,57.2958*w(:,1),'r'); hold on;
+    plot(timeDays,57.2958*w(:,2),'b')
+    plot(timeDays,57.2958*w(:,3),'k')
+    title('Body-referenced angular velocities','FontSize',14);
+    xlabel('time (mins)','FontSize',12);
+    ylabel('deg/s)','FontSize',12);
+    legend('w(x)','w(y)','w(z)');
+end
+
+if errorAng==true
+    figure;
+    plot(timeDays,Error)
+    title('Error angle','FontSize',14);
+    xlabel('time (days)','FontSize',12);
+    ylabel('degrees (°)','FontSize',12);
+end
+
+if torque==true
+    figure;
+    plot(timeDays,sqrt(Tmag(1,:).^2+Tmag(2,:).^2+Tmag(3,:).^2),'r'); hold on;
+    plot(timeDays,sqrt(TxRod(1,:).^2+TxRod(2,:).^2+TxRod(3,:).^2),'b');
+    plot(timeDays,sqrt(TyRod(1,:).^2+TyRod(2,:).^2+TyRod(3,:).^2),'k');
+    plot(timeDays,sqrt(Tg(1,:).^2+Tg(2,:).^2+Tg(3,:).^2),'g');
+    title('Magnitudes of Torques on Satellite','FontSize',14);
+    xlabel('time (days)','FontSize',12);
+    ylabel('N*m','FontSize',12);
+    legend('Permanent Magnet','x-Axis Rods','y-Axis Rods','Gravity Gradient');
+end
+
+if hystCurves==true
+    figure;
+    plot(HxRod,BxRod);
+    title('Hysteresis loop of x-axis rod','FontSize',14);
+    xlabel('H','FontSize',12);
+    ylabel('B','FontSize',12);
+    figure;
+    plot(HyRod,ByRod);
+    title('Hysteresis loop of y-axis rod','FontSize',14);
+    xlabel('H','FontSize',12);
+    ylabel('B','FontSize',12);
+end
+
+if inertialOrbit==true
+    figure;
+    plot3(r(:,1),r(:,2),r(:,3),'k');
+    title('Orbit in Inertial Frame (m)','FontSize',12);
+end
+
+if earthOrbit==true
+    figure;
+    plot3(rEarth(1,:),rEarth(2,:),rEarth(3,:),'k');
+    title('Orbit in Earth-Fixed Frame (m)','FontSize',12);
+end
+
+if qNorm==true
+    figure;
+    plot(timeDays,sqrt(q(:,1).^2+q(:,2).^2+q(:,3).^2+q(:,4).^2)) %normalization over time
+end
+
+%Make the attitude video
+if makeAttitudeVideo==true
+    attitudeVideo = makeAnimation(q,Bb,time);
+end
