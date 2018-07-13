@@ -18,7 +18,6 @@
 - [ ] GUI
 - [ ] Automatically calculate period 
 
-----
 ## Usage 
 
 ### **Inputs**
