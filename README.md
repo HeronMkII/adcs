@@ -8,16 +8,15 @@
 - [x] LEO Orbit propagation
 - [x] 3-axis permanent magnet + hysteresis rods
 - [x] Solar panel heat flux + surface temprature
-- Pertubations
-    - [x] Gravity gradient
-    - [x] Global magnetic model
+- [x] Pertubation: Gravity gradient
+- [x] Pertubation: Global magnetic model
 
 ### **Future implementation**
 
-- Pertubations
-    - [ ] Solar flux
-    - [ ] Aerodynamic drag
-- GUI
+- [ ] Pertubation: Solar flux
+- [ ] Pertubation: Aerodynamic drag
+- [ ] GUI
+- [ ] Automatically calculate period 
 
 ----
 ## Usage 
