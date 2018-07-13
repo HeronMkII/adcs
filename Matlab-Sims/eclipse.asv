@@ -1,0 +1,12 @@
+function e = eclipse(t,time,ec)
+
+for i=1:time+1
+    if(ec(i)==1)
+        if t==i
+            e=true;
+            break
+        end
+    end
+end
+
+while fou

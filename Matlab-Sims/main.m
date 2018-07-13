@@ -15,33 +15,64 @@ u=3.986004418e14;               %Gravitational parameter of the Earth
 mu=4e-7*pi;                     %Relative permeability of free space
 
 %Parameter Constants
-days=1;                        %Simulation time in days
+days=7;                        %Simulation time in days
+initialDay=334;                   %Initial day of the year (day 0 is at vernal equinox)
+rodsPerAxis=1.4;                 %Number of hysteresis rods per axis (x and y)
+% Hc=12;                          %Constant coercivity value of hyst rods
+% Bs=0.025;                       %Magnetization at saturation of hyst rods
+% Br=0.004;                       %Magnetic remanence of hysteresis rods
+% %https://digitalcommons.usu.edu/cgi/viewcontent.cgi?referer= ...
+% %%https://www.google.ca/&httpsredir=1&article=1230&context=smallsat
 
-%Permenorm 5000 H2 rods NOPE: HyMu 80 Rods 
-rodsPerAxis=0.4;                  %Number of hysteresis rods per axis (x and y)
-Hc=5;                           %Constant coercivity value of hyst rods
-Bs=1.55;                        %Magnetization at saturation of hyst rods
-Br=0.755;                       %Magnetic remanence of hysteresis rods
-rodLength=0.085;                %Hysteresis rod dimensions
-rodRadius=0.0005;
+%HyMu80
+Hc=1.59;                           %Constant coercivity value of hyst rods
+Bs=0.73;                        %Magnetization at saturation of hyst rods
+Br=0.35;                       %Magnetic remanence of hysteresis rods
 
-M=[0;0;0.4];                    %Magnetic moment of permanent magnet
-mass=4;                       %Satellite mass and dimentions
-width=0.1;
-height=0.3;
+M=[0;0;2];                    %Magnetic moment of permanent magnet
 
-majorAxis=6928137;              %ISS Orbital parameters in keplerian elements
-eccentricity=0.000;        
-inclination=97.501;
-longOfAscendingNode=270.478; %VALIDATE-keeps changing
+mass=3.138; %kg                       %Satellite mass and dimentions
+width=0.1; %m
+height=0.3; %m
+
+rodLength=0.07; %m               %Hysteresis rod dimensions
+rodRadius=0.0005; %m
+
+%hot case - 31 JAN
+
+% majorAxis=6928.14e3;      %m        %Orbital parameters in keplerian elements
+% eccentricity=0;        
+% inclination=97.5897; %deg
+% longOfAscendingNode=98.9563; %deg
+% ArgumentOfPeriapsis=0;
+% MeanAnomalyEpoch=359.891;
+
+%cold case - NOV 1
+
+majorAxis=6928.14e3;      %m        %Orbital parameters in keplerian elements
+eccentricity=0;        
+inclination=97.656; %deg
+longOfAscendingNode=16.4596; %deg
 ArgumentOfPeriapsis=0;
-MeanAnomalyEpoch=360;         %VALIDATE-keeps changing
+MeanAnomalyEpoch=359.908;
+
+% er = 0.362767142;           %for 10:30 SSO @ 500km, Nov 2019 average
+% er = 0.3;                      %hot case, jan 31 SSO 550 km
+er = 0.371;
+
+period = 5746; %in seconds, for SSO @ 550 km
+
+earthInclination=23.5;        %Inclination of Earth orbit plane in degrees
 
 %Calculated constants
 time=days*3600*24;                          %Simulation time in seconds
-I=[(1/12)*mass*(width^2+height^2),0,0;...   %Inertia tensor assuming
-    0,(1/12)*mass*(width^2+height^2),0;...     %uniform mass distribution
-    0,0,(1/12)*mass*(width^2+width^2)];
+solarPanelArea=6*26.62e-4;                  %26.62cm2/panel, 6 per face
+% I=[(1/12)*mass*(width^2+height^2),0,0;...   %Inertia tensor assuming
+%     0,(1/12)*mass*(width^2+height^2),0;...     %uniform mass distribution
+%     0,0,(1/12)*mass*(width^2+width^2)];
+I=[0.026066,0,0;...   %Inertia tensor assuming
+    0,0.026066,0;...     %uniform mass distribution
+    0,0,0.00523];
 rodVol=pi*rodRadius^2*rodLength;            %Hysteresis rod volume
 Hr=cot((pi*Br)/(2*Bs))*Hc;                  %Remanence constant
 
@@ -53,11 +84,15 @@ kepElem=[u;majorAxis;...            %Orbit parameters in keplerian elements
          ArgumentOfPeriapsis;...
          MeanAnomalyEpoch];
 p0=orbitToCartesian(kepElem);       %Convert keplerian elements to cartesian position and velocity
-% r0=p0(1:3,1);                       %Initial position in ECI (or ECF because initially aligned)
-% v0=p0(4:6,1);                       %Initial velocity in ECI (or ECF because initially aligned)
-r0 = 1e3*[4004.6914; 5636.0926; 442.706];
-v0 = 1e3*[0.55055; 0.9804; 7.5013];
-w0=[0.1;0.1;0.01];                  %Initial angular velocity
+r0=p0(1:3,1);                       %Initial position in ECI (or ECF because initially aligned)
+v0=p0(4:6,1);                       %Initial velocity in ECI (or ECF because initially aligned)
+
+Ric = [1 0 0;...                            %Rotation cosine matrix from  
+       0 cosd(earthInclination) -sind(earthInclination);... %celestial inertial to
+       0 sind(earthInclination) cosd(earthInclination)];    %equatorial inertial
+
+w0=[0.2;0.2;0.1];                %Initial angular velocity
+% w0=[0.1;0.1;0.01];
 q0=[1;0;0;0];                       %Initial quaternion relating satellite attitude to ECI frame
 
 %Determine initial magnetization of rods assuming they started out at B=0
@@ -66,7 +101,6 @@ q0=[1;0;0;0];                       %Initial quaternion relating satellite attit
 Rbi0 = ECItoBody(q0);
 Hb0 = Rbi0*(dipole_magstrength(r0));   %ECF and ECI are initially aligned, so no need to rotate
 HxRod0=Hb0(1);
-% HxRod0 = Hb0(3); %rod on Z
 HyRod0=Hb0(2);
 if HxRod0 < 0
     x = atan(-(Hc-HxRod0)/Hr);
@@ -83,9 +117,20 @@ else
     ByRod0 = y*2*Bs/pi;
 end
 
+%setup eclipse array
+orbits = floor(time/period); %# of orbits
+edur = floor(period*er); %eclipse duration
+ec = zeros(1,time+1); %1 for eclipse 0 for not
+for k=1:orbits
+    for c= 1:edur
+        counter = k*period-edur + c;
+        ec(counter)=1;        
+    end
+end
+
 %INTEGRATE
 options = odeset('RelTol',1e-6,'AbsTol',1e-7,'OutputFcn',@odetpbar);
-[t,A] = ode23(@(t,x)propagate(t, x, mu, u, M, rodVol, I, Hc, Hr, Bs, rodsPerAxis),...
+[t,A] = ode23(@(t,x)propagate(t, x, mu, u, M, rodVol, I, Hc, Hr, Bs, rodsPerAxis,Ric,ec,time,orbits,edur,period),...
               0:time, [w0;q0;r0;v0;BxRod0;ByRod0], options);
 
 %Integration outputs
@@ -94,7 +139,6 @@ q = A(:,4:7);
 r = A(:,8:10);
 v = A(:,11:13);
 BxRod = A(:,14);
-% BxRod = A(:,16); %rod on Z
 ByRod = A(:,15);
 
 %%GENERATE RESULTS
@@ -118,6 +162,12 @@ Error = zeros(1,time+1);    %%Angle between minor (z) axis and external magnetic
 
 timeDays = zeros(time+1,1); %%Time of simulation in days
 
+xNegFlux = zeros(1,time+1); %%Flux on solar panel surfaces
+xPosFlux = zeros(1,time+1);
+yNegFlux = zeros(1,time+1);
+yPosFlux = zeros(1,time+1);
+
+totalFlux = zeros(1,time+1);
 %%For-loop to fill matrices at every time step
 for k=1:time+1      %%Each index of k corresponds to the current time+1 (k=1->t=0)
     
@@ -136,13 +186,11 @@ for k=1:time+1      %%Each index of k corresponds to the current time+1 (k=1->t=
     Hb(:,k) = Rbi*Rei'*He(:,k);
     Bb(:,k) = Rbi*Rei'*Be(:,k);
     HxRod(k) = Hb(1,k);
-%     HxRod(k) = Hb(3,k); %rod on Z
     HyRod(k) = Hb(2,k);
     
     %%Fill torque elements
     Tmag(:,k) = skew(M)*(Bb(:,k));
     TxRod(:,k) = rodsPerAxis * skew([BxRod(k)*rodVol;0;0])*Hb(:,k);
-%     TxRod(:,k) = rodsPerAxis * skew([0;0;BxRod(k)*rodVol])*Hb(:,k); %Move rod to Z axis
     TyRod(:,k) = rodsPerAxis * skew([0;ByRod(k)*rodVol;0])*Hb(:,k);
     Tg(:,k) = gravity_gradient(u,r(k,:)',Rbi,I);
     
@@ -150,30 +198,70 @@ for k=1:time+1      %%Each index of k corresponds to the current time+1 (k=1->t=
     Error(k) = angle(M,Bb(:,k));
     
     %Fill TimeDays matrix
-    timeDays(k) = t(k)/60;
+    timeDays(k) = t(k)/3600/24;
     
+    %%Find the solar vector
+    theta = ((((k-1)/3600/24)+initialDay)/365.25)*2*pi;  %Angle Earth has orbited Sun in rad
+    rEtoS_C = [cos(theta);sin(theta);0];    %Unit vector from Earth to Sun in celestial inertial 
+    rEtoS_I = Ric*rEtoS_C;                  %In equitorial inertial
+    rEtoS_B = Rbi*rEtoS_I;                  %In body frame
+    rEtoS_Bn = rEtoS_B / sqrt(rEtoS_B' * rEtoS_B); %normalize, make unit vector
+    
+    %%Fill Flux matrices
+    xNegFlux(k) = 1385*[-1 0 0]*rEtoS_Bn; %1395 - avg solar irridiance of Nov 2019 10:30
+    xPosFlux(k) = 1385*[1 0 0]*rEtoS_Bn;
+    yNegFlux(k) = 1385*[0 -1 0]*rEtoS_Bn;
+    yPosFlux(k) = 1385*[0 1 0]*rEtoS_Bn;
+    
+    %%Disregard Flux if it is negative (surface is not facing the sun)
+    if xNegFlux(k)<0
+        xNegFlux(k)=0;
+    end
+    if xPosFlux(k)<0
+        xPosFlux(k)=0;
+    end
+    if yNegFlux(k)<0
+        yNegFlux(k)=0;
+    end
+    if yPosFlux(k)<0
+        yPosFlux(k)=0;
+    end    
+end
+
+%%%%%%%%ECLIPSE
+orbits = floor(time/period);
+edur = floor(period*er); %eclipse duration
+for k=1:orbits
+    for c= 1:edur
+        counter = k*period-edur + c;
+        xNegFlux(counter)=0;
+        xPosFlux(counter)=0;
+        yNegFlux(counter)=0;
+        yPosFlux(counter)=0;
+    end
 end
 
 %%GRAPH RESULTS
-%% 
 
 %%Easily designate which results to graph
 angVel = true;
-errorAng = false;
+errorAng = true;
 torque = false;
 hystCurves = false;
 inertialOrbit = false;
 earthOrbit = false;
-qNorm = true;
+qNorm = false;
+tempg = false;
+flux = false;
 
 if angVel==true
     figure;
-    plot(timeDays,57.2958*w(:,1),'r'); hold on;
-    plot(timeDays,57.2958*w(:,2),'b')
-    plot(timeDays,57.2958*w(:,3),'k')
+    plot(timeDays,w(:,1),'r'); hold on;
+    plot(timeDays,w(:,2),'b')
+    plot(timeDays,w(:,3),'k')
     title('Body-referenced angular velocities','FontSize',14);
-    xlabel('time (mins)','FontSize',12);
-    ylabel('deg/s)','FontSize',12);
+    xlabel('time (days)','FontSize',12);
+    ylabel('rad/s)','FontSize',12);
     legend('w(x)','w(y)','w(z)');
 end
 
@@ -182,7 +270,7 @@ if errorAng==true
     plot(timeDays,Error)
     title('Error angle','FontSize',14);
     xlabel('time (days)','FontSize',12);
-    ylabel('degrees (°)','FontSize',12);
+    ylabel('degrees','FontSize',12);
 end
 
 if torque==true
@@ -226,6 +314,20 @@ if qNorm==true
     figure;
     plot(timeDays,sqrt(q(:,1).^2+q(:,2).^2+q(:,3).^2+q(:,4).^2)) %normalization over time
 end
+
+if flux==true
+    figure; 
+    hold on;
+    plot(t,xPosFlux)
+    plot(t,xNegFlux)
+    plot(t,yPosFlux)
+    plot(t,yNegFlux)
+    legend('xPos','xNeg','yPos','yNeg');
+    title('Flux On Solar Panels','FontSize',14);
+    xlabel('time (s)','FontSize',12);
+    ylabel('Flux (W/m^2)','FontSize',12);
+end
+
 
 %Make the attitude video
 if makeAttitudeVideo==true

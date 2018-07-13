@@ -3,9 +3,9 @@ function video = makeAnimation(q,Bb,time)
 %space and the external magnetic field.
 
 %Movie settings
-video = VideoWriter('C:\Users\Addy\odrive\Google Drive (2)\4_Space_Systems\ADCS\matlab_sims\attitudeAnimation.avi');
+video = VideoWriter('C:\Users\Addy\odrive\Google Drive (2)\4_Space_Systems\ADCS\matlab_sims\Phase 6_2\12-march-attitude-1-day.avi');
 video.Quality = 100;
-video.FrameRate = 30;
+video.FrameRate = 5;
 
 %Frames in animation
 frames = time+1;
@@ -13,7 +13,7 @@ frames = time+1;
 %Axes of the satellite in Body Frame
 xAxis = [1;0;0];
 yAxis = [0;1;0];
-zAxis = [0;0;2];  %Represent the minor axis with a longer vector
+zAxis = [0;0;1.5];  %Represent the minor axis with a longer vector
 
 %Matrix of axes of the satellite and magnetic field in ECI Frame 
 xAtTime = zeros(frames,3);
@@ -34,7 +34,6 @@ for currentFrame=1:frames
 end
 
 %Make movie
-hold all;
 open(video);
 for currentFrame=1:frames
     %Refresh figure
@@ -60,4 +59,4 @@ end
 close(video);
 
 %Open the video
-winopen('C:\Users\Addy\odrive\Google Drive (2)\4_Space_Systems\ADCS\matlab_sims\attitudeAnimation.avi')
+winopen('C:\Users\Addy\odrive\Google Drive (2)\4_Space_Systems\ADCS\matlab_sims\14-16\attitudeAnimation.avi')
