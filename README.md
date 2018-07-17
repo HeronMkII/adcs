@@ -15,10 +15,11 @@
 
 - [ ] Pertubation: Solar flux
 - [ ] Pertubation: Aerodynamic drag
+- [ ] Compare with SNAP simulator 
 - [ ] GUI
 - [ ] Automatically calculate period 
 
-## Usage 
+## Usage (Matlab Sims)
 
 ### **Inputs**
 1. Sim duration [ s ]
