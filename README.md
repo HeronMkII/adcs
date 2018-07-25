@@ -55,7 +55,8 @@
 8. Flux plot
 
 
-## Authors
+## Contributors 
 
+* Eric Elmoznino
 * Addy Bhatia (addy.bhatia@mail.utoronto.ca)
-
+* Patrick Howell
