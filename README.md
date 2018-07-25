@@ -55,3 +55,7 @@
 8. Flux plot
 
 
+## Features
+
+* Addy Bhatia (addy.bhatia@mail.utoronto.ca)
+
