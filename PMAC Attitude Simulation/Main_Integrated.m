@@ -1,3 +1,15 @@
+% % % CubeSat attitude simulation model - magnetic control
+% % % This simulation was used in previous research projects concerning 
+% % % magnetic control. For the scope of UTAT Space Systems, the simulation
+% % % is used to simulate the motion of the Satellite and evaluate the design 
+% % % of the PMAC (Passive Magnetic Attitude Control). PMAC includes a permanent 
+% % % magnet along the z-axis of the S/C, with hysteresis rods along the 
+% % % x-&y-axis respectively to damp oscillations.
+% % % 
+% % % Base code author: Thomas Leung
+% % % leung.sh.thomas@gmail.com
+% % % Date: 03rd July 2019
+
 clear;clc;close all;
 
 %% ---Earths constants & Orbital Elements--- %%
